@@ -15,7 +15,7 @@ struct ThreadData {
 
 pub struct Forwarder {
 	shared_data : Arc<Mutex<ThreadData>>,
-	worker : Option<std::thread::JoinHandle<()>>,
+	tokio_data : Option< (tokio::runtime::Runtime, tokio::task::JoinHandle<()> ) >, 
 }
 
 impl Forwarder {
@@ -29,24 +29,24 @@ impl Forwarder {
 		};
 		
 		let shared_data : Arc<Mutex<ThreadData>> = Arc::new(Mutex::new(data));
-		let shared_data_1 = shared_data.clone();
-		let worker = std::thread::spawn(move || {
-			worker_thread(shared_data_1)
-		});
+		let t_rt = start_runtime(&shared_data);
 		
 		return Forwarder {
 			shared_data : shared_data,
-			worker : Some(worker)
+			tokio_data : Some(t_rt)
 		};
 	}
 
 	pub fn stop(&mut self) { 
-		let shared_data = &*(self.shared_data.lock().unwrap());
-		shared_data.cancel_token.cancel();
-		drop(shared_data);
 
-		if let Some(data) = self.worker.take() {
-			data.join().unwrap();
+		{
+			let shared_data = &*(self.shared_data.lock().unwrap());
+			shared_data.cancel_token.cancel();
+		}
+
+		if let Some(data) = self.tokio_data.take() {
+			let (_, t_jh) = data;
+			futures::executor::block_on(t_jh).unwrap();
 		}
 	}
 	
@@ -75,9 +75,11 @@ async fn listener_thread_async(shared_data : Arc<Mutex<ThreadData>>, idx_cfg : u
 
 async fn worker_thread_async(shared_data : Arc<Mutex<ThreadData>>) {
 	
-	let shared_data_ = shared_data.lock().unwrap();
-	let total_listeners = shared_data_.config.forward_info.len();
-	drop(shared_data_);
+	let total_listeners = {
+		let shared_data_ = shared_data.lock().unwrap();
+		let total_listeners = shared_data_.config.forward_info.len();
+		total_listeners
+	};
 
 	let mut tasks : Vec<tokio::task::JoinHandle<()>> = Vec::new();
 
@@ -94,10 +96,17 @@ async fn worker_thread_async(shared_data : Arc<Mutex<ThreadData>>) {
 	futures::future::join_all(tasks).await;
 }
 
-fn worker_thread(data : Arc<Mutex<ThreadData>>) {
-    tokio::runtime::Builder::new_current_thread()
-		.enable_io()
+fn start_runtime(data : &Arc<Mutex<ThreadData>>) -> (tokio::runtime::Runtime, tokio::task::JoinHandle<()>)
+{
+	let rt = tokio::runtime::Builder::new_multi_thread()
+		.enable_all()
 		.build()
-		.unwrap()
-		.block_on(worker_thread_async(data));
+		.unwrap();
+	
+	let cl = data.clone();
+	let jh = rt.spawn(async {
+		worker_thread_async(cl).await;
+	});
+
+	(rt, jh)
 }

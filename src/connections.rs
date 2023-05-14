@@ -11,12 +11,12 @@ fn alloc_conn_id() -> u64 {
 
 pub struct ConnectionData {
 
-    pub conn_id : u64,
+	pub conn_id : u64,
 
-    pub remote_ip		     : String,
+	pub remote_ip            : String,
 	pub connected_to         : String,
-    pub bytes_to_remote_ip   : usize,
-    pub bytes_to_fowarded_ip : usize,
+	pub bytes_to_remote_ip   : usize,
+	pub bytes_to_fowarded_ip : usize,
 
 	pub active: bool,
 }
@@ -48,7 +48,7 @@ impl Connections {
 		};
 	}
 
-	pub fn add<'a>(&'a mut self) -> &'a mut ConnectionData {
+	pub fn add(&mut self) -> &mut ConnectionData {
 		let id = alloc_conn_id();
 
 		if let Some(_) = &self.connections.get(&id){
@@ -62,7 +62,7 @@ impl Connections {
 		tmp
 	}	
 
-	pub fn get<'a>(&'a mut self, id : u64) -> &'a mut ConnectionData {
+	pub fn get(&mut self, id : u64) -> &mut ConnectionData {
 		let tmp = self.connections.get_mut(&id).unwrap();
 		tmp
 	}
