@@ -23,12 +23,17 @@ impl Config {
 
 		for config_elem in jso {
 			let config_elem = config_elem.as_object()?;
-
+			
+			let enabled  = &config_elem.get("enabled")?.as_bool()?;
 			let listen_to = &config_elem.get("listen_to")?.as_str()?;
 			let forward_to = &config_elem.get("forward_to")?.as_str()?;
 			let wl = config_elem.get("whitelist")?.as_array()?;
 			let wl = wl.iter().map(|val| val.as_str()).collect::<Option<Vec<&str>>>()?;
 			let wl = wl.iter().map(|val| val.to_string()).collect::<Vec<String>>();
+
+			if !enabled {
+				continue;
+			}
 
 			let fw_info = ForwardInfo {
 				listen_to : listen_to.to_string(),

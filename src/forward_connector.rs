@@ -212,6 +212,11 @@ pub async fn do_connection_flow(
 			}
 		};
 
-		connection_flow(socket, &info, &mut connections.clone(), cancel_token.clone()).await;
+		let info_cl = info.clone();
+		let mut conn_cl = connections.clone();
+		let cancel_token_cl = cancel_token.clone();
+		tokio::spawn(async move {
+			connection_flow(socket, &info_cl, &mut conn_cl, cancel_token_cl).await;
+		});
 	}
 }
